@@ -12,9 +12,11 @@ from VO.ItemCommentVO import ItemCommentVO
 from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver import ActionChains
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import TimeoutException
+from FileHandler import read_file, write_file
 
 
 # chrome.exe -remote-debugging-port=9222 -user-data-dir="D:\atmP"
@@ -31,6 +33,40 @@ class SearchAPI:
     def teardown_method(self):
         self.driver.quit()
 
+    # 滑块处理--刷新页面时
+    def slider_handler(self):
+        # 获取滑块
+        frame_element = self.driver.find_element(By.XPATH,"//iframe[@id='baxia-dialog-content']")
+        self.driver.switch_to.frame(frame_element)
+        slider = self.driver.find_element(By.XPATH,"//div[contains(@class,'nc')]/span")
+        # 拖动滑块
+        actions = ActionChains(self.driver)
+        actions.click_and_hold(slider).perform()
+        # 定义速度参数
+        pullback = random.randint(15, 25)  # 回拉距离
+        current_offset = 0  # 当前位移
+
+        while current_offset < 300:
+            # 计算当前速度
+            if current_offset < 240:
+                speed = random.randint(120, 140)
+            if current_offset >= 240:
+                speed = random.randint(25, 65)
+            # 移动滑块
+            current_offset += speed
+            actions.move_by_offset(speed, 0).perform()
+            time.sleep(0.1)  # 等待一小段时间
+
+            # 到达目标位置时进行微小的回拉动作
+            if current_offset >= 300 - pullback:
+                actions.move_by_offset(-pullback, 0).perform()
+                time.sleep(0.1)
+                actions.move_by_offset(pullback, 0).perform()
+
+        # 释放滑块
+        actions.release().perform()
+        self.driver.switch_to.default_content()
+
     # 登录淘宝账号,
     # **前提** 账号密码已经在浏览器保存，否则修改
     def login(self):
@@ -44,7 +80,7 @@ class SearchAPI:
                                      "//div[contains(@class,'qrcode-bottom-links')]/a[@target='_self']").click()
         except TimeoutException:
             print("no qrcode")
-        time.sleep(random.randint(1, 3))
+        time.sleep(random.randint(2, 3))
         self.driver.find_element(By.XPATH, "//div[@class='fm-btn']/button").click()
         time.sleep(random.randint(1, 3))
 
@@ -122,26 +158,63 @@ class SearchAPI:
 
     def shop_item(self, shop_url):
         print("shop item")
+        time.sleep(random.randint(3, 6))
         self.driver.get(shop_url + "/search.htm?orderType=newOn_desc")
-        WebDriverWait(self.driver, 30).until(expected_conditions.presence_of_element_located(
+
+        # 打开新页面时判断滑块
+        time.sleep(random.randint(2, 3))
+        try:
+            WebDriverWait(self.driver, 15).until(expected_conditions.visibility_of_element_located(
             (By.XPATH, "//p[contains(@class,'ui-page')]/b[contains(@class,'len')]")))
+        except TimeoutException:
+            print("open new shop slider-->!!!")
+            WebDriverWait(self.driver, 5).until(expected_conditions.presence_of_element_located(
+                (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
+            self.slider_handler()
+
         self.vars["totalPageString"] = self.driver.find_element(By.XPATH,
                                                                 "//p[contains(@class,'ui-page')]/b[contains(@class,'len')]").text
         self.vars["totalPage"] = self.driver.execute_script("return arguments[0].split('/')[1].trim()",
                                                             self.vars["totalPageString"])
         print("number of all pages->{}".format(self.vars["totalPage"]))
-        time.sleep(random.randint(1, 5))
+        time.sleep(random.randint(2, 3))
+
         shop_item_vo = []
+
+        # 爬取商品
         for i in range(1, int(self.vars["totalPage"]) + 1):
-            time.sleep(random.randint(1, 5))
+
             self.driver.get(shop_url + "/search.htm?orderType=newOn_desc&pageNo=" + str(i))
-            time.sleep(random.randint(1, 5))
-            WebDriverWait(self.driver, 30).until(expected_conditions.visibility_of_element_located((By.XPATH,
+
+            # 打开新页面时判断滑块
+            try:
+                WebDriverWait(self.driver, 15).until(expected_conditions.visibility_of_element_located((By.XPATH,
                                                                                                     "//div[@class='J_TItems']/div[contains(@class,'pagination')]/preceding-sibling::div/dl"))
                                                  )
+            except TimeoutException :
+                print("open items slider-->!!!")
+                WebDriverWait(self.driver, 5).until(expected_conditions.visibility_of_element_located(
+                    (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
+                self.slider_handler()
+                self.driver.get(shop_url + "/search.htm?orderType=newOn_desc&pageNo=" + str(i))
+
+            time.sleep(random.randint(5, 7))
+
+            # 滚动应对图片懒加载
+            page_height = self.driver.execute_script("return document.body.scrollHeight")
+            # window_height = self.driver.execute_script("return window.innerHeight;")
+            # 设置滚动步长
+            scroll_step = random.randint(200, 300)
+            # 开始滚动
+            current_position = 0
+            while current_position < page_height:
+                self.driver.execute_script("window.scrollTo(0, {});".format(current_position))
+                time.sleep(random.uniform(0.5, 1))  # 等待页面滚动到指定位置
+                current_position += scroll_step
+
             self.vars["items"] = self.driver.execute_script('''
-                var elements = document.evaluate("//div[@class='J_TItems']/div[contains(@class,'pagination')]/preceding-sibling::div/dl", document, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
                 var results = [];
+                var elements = document.evaluate("//div[@class='J_TItems']/div[contains(@class,'pagination')]/preceding-sibling::div/dl", document, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
                 for (var i = 0; i < elements.snapshotLength; i++) {
                     var dlElement = elements.snapshotItem(i);
                     var dataId = dlElement.getAttribute("data-id");
@@ -158,7 +231,10 @@ class SearchAPI:
                 return results;
             ''')
             shop_item_vo.extend(self.vars["items"])
-        return json.dumps(ShopItemVO(shop_item_vo).items, ensure_ascii=False, indent=2)
+        # 存入json文件时返回值
+        return ShopItemVO(shop_item_vo).items
+        # 返回json格式时返回值
+        # return json.dumps(ShopItemVO(shop_item_vo).items, ensure_ascii=False, indent=2)
 
     # 输入：商品的num_iid
     # 输出：商品基本信息（包括品名、价格、型号、颜色、商品图片等）
@@ -384,15 +460,27 @@ if __name__ == '__main__':
     search = SearchAPI()
     # 创建webdriver
     search.setup_webdriver()
-    # 登录
-    search.login()
-    # 店铺信息
-    print(search.shop_info(57299736))
+    # # 登录
+    # search.login()
+    # # 店铺信息
+    # print(search.shop_info(57299736))
     # 店铺商品
-    print(search.shop_item("https://lining.tmall.com"))
-    # 商品基本信息
-    print(search.item_base_info(744593438840))
-    # 商品销售信息
-    print(search.item_sale_info(744593438840))
-    # 商品评论
-    print(search.item_comment(678997602235))
+    # print(search.shop_item("https://lining.tmall.com"))
+    # # 商品基本信息
+    # print(search.item_base_info(744593438840))
+    # # 商品销售信息
+    # print(search.item_sale_info(744593438840))
+    # # 商品评论
+    # print(search.item_comment(678997602235))
+
+    # 商品存json文件代码
+    read_file_path = r'C:\Users\zzlsix\Desktop\items\项目品牌电商网址清单 -新增部分门店款数.xlsx'
+    sheet_name = '品牌官网'
+    exc = read_file(read_file_path, sheet_name)
+
+    for i in range(7, 242):
+        cell_id = exc.at[i, '序号']
+        cell_href = exc.at[i, '网址']
+        write_file_path = r'C:\Users\zzlsix\Desktop\items' + '\\' + str(cell_id) + '.json'
+        data = search.shop_item(cell_href)
+        write_file(write_file_path, data)
