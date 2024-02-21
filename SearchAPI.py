@@ -1,8 +1,10 @@
 import time
 import random
 import json
-from datetime import datetime
+import os
+import subprocess
 
+from datetime import datetime
 from VO.ShopInfoVO import DynamicRatings
 from VO.ShopInfoVO import ShopInfoVO, serialize_shop_info
 from VO.ShopItemVO import ShopItemVO
@@ -19,11 +21,39 @@ from selenium.common.exceptions import TimeoutException
 from FileHandler import read_file, write_file
 
 
-# chrome.exe -remote-debugging-port=9222 -user-data-dir="D:\atmP"
+# chrome.exe -remote-debugging-port=9222 -user-data-dir="C:\Users\zzlsix\Desktop\atmP"
+# chrome.exe --remote-debugging-port=9222 --user-data-dir="C:\Users\zzlsix\Desktop\atmP" --headless
+# taskkill /F /IM chrome.exe
 class SearchAPI:
 
     # 启动webdriver
+    def __init__(self):
+        self.vars = None
+        self.driver = None
+
     def setup_webdriver(self):
+        print("webdriver : set up and start")
+        # # work = r'chrome.exe -remote-debugging-port=9222 -user-data-dir="C:\Users\zzlsix\Desktop\atmP"'
+        # work = r'chrome.exe  --headless --remote-debugging-port=9222 --user-data-dir="C:\Users\zzlsix\Desktop\atmP"'  # 无头配置
+        # os.popen(work)
+
+        # 无头模式
+        # command = [
+        #     "chrome",
+        #     "--headless",
+        #     "--remote-debugging-port=9222",
+        #     "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP",
+        #     "https://www.baidu.com"
+        # ]
+
+        # 有头模式
+        command = [
+            "chrome",
+            "--remote-debugging-port=9222",
+            "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP"
+        ]
+
+        subprocess.Popen(command)
         options = Options()
         options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
         self.driver = webdriver.Chrome(options=options)
@@ -31,14 +61,18 @@ class SearchAPI:
 
     # 退出webdriver
     def teardown_method(self):
+        print("webdriver : kill and end")
         self.driver.quit()
+        # work = r'taskkill /F /IM chrome.exe'
+        # os.popen(work)
+        print("program over")
 
     # 滑块处理--刷新页面时
     def slider_handler(self):
         # 获取滑块
-        frame_element = self.driver.find_element(By.XPATH,"//iframe[@id='baxia-dialog-content']")
+        frame_element = self.driver.find_element(By.XPATH, "//iframe[@id='baxia-dialog-content']")
         self.driver.switch_to.frame(frame_element)
-        slider = self.driver.find_element(By.XPATH,"//div[contains(@class,'nc')]/span")
+        slider = self.driver.find_element(By.XPATH, "//div[contains(@class,'nc')]/span")
         # 拖动滑块
         actions = ActionChains(self.driver)
         actions.click_and_hold(slider).perform()
@@ -70,6 +104,7 @@ class SearchAPI:
     # 登录淘宝账号,
     # **前提** 账号密码已经在浏览器保存，否则修改
     def login(self):
+        print("log in")
         self.driver.get("https://login.taobao.com/member/login.jhtml")
         try:
             WebDriverWait(self.driver, 5).until(
@@ -80,6 +115,9 @@ class SearchAPI:
                                      "//div[contains(@class,'qrcode-bottom-links')]/a[@target='_self']").click()
         except TimeoutException:
             print("no qrcode")
+
+        # username and password
+
         time.sleep(random.randint(2, 3))
         self.driver.find_element(By.XPATH, "//div[@class='fm-btn']/button").click()
         time.sleep(random.randint(1, 3))
@@ -160,14 +198,15 @@ class SearchAPI:
         print("shop item")
         time.sleep(random.randint(3, 6))
         self.driver.get(shop_url + "/search.htm?orderType=newOn_desc")
+        print("the connection is accessed now is : " + shop_url)
 
         # 打开新页面时判断滑块
         time.sleep(random.randint(2, 3))
         try:
             WebDriverWait(self.driver, 15).until(expected_conditions.visibility_of_element_located(
-            (By.XPATH, "//p[contains(@class,'ui-page')]/b[contains(@class,'len')]")))
+                (By.XPATH, "//p[contains(@class,'ui-page')]/b[contains(@class,'len')]")))
         except TimeoutException:
-            print("open new shop slider-->!!!")
+            print("***slider appears : access shop link ***")
             WebDriverWait(self.driver, 5).until(expected_conditions.presence_of_element_located(
                 (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
             self.slider_handler()
@@ -185,32 +224,20 @@ class SearchAPI:
         for i in range(1, int(self.vars["totalPage"]) + 1):
 
             self.driver.get(shop_url + "/search.htm?orderType=newOn_desc&pageNo=" + str(i))
-
+            print("the current page is : " + str(i) + " / " + self.vars["totalPage"])
             # 打开新页面时判断滑块
             try:
                 WebDriverWait(self.driver, 15).until(expected_conditions.visibility_of_element_located((By.XPATH,
-                                                                                                    "//div[@class='J_TItems']/div[contains(@class,'pagination')]/preceding-sibling::div/dl"))
-                                                 )
-            except TimeoutException :
-                print("open items slider-->!!!")
+                                                                                                        "//div[@class='J_TItems']/div[contains(@class,'pagination')]/preceding-sibling::div/dl"))
+                                                     )
+            except TimeoutException:
+                print("***slider appears : access shop page link ***")
                 WebDriverWait(self.driver, 5).until(expected_conditions.visibility_of_element_located(
                     (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
                 self.slider_handler()
                 self.driver.get(shop_url + "/search.htm?orderType=newOn_desc&pageNo=" + str(i))
 
             time.sleep(random.randint(5, 7))
-
-            # 滚动应对图片懒加载
-            page_height = self.driver.execute_script("return document.body.scrollHeight")
-            # window_height = self.driver.execute_script("return window.innerHeight;")
-            # 设置滚动步长
-            scroll_step = random.randint(200, 300)
-            # 开始滚动
-            current_position = 0
-            while current_position < page_height:
-                self.driver.execute_script("window.scrollTo(0, {});".format(current_position))
-                time.sleep(random.uniform(0.5, 1))  # 等待页面滚动到指定位置
-                current_position += scroll_step
 
             self.vars["items"] = self.driver.execute_script('''
                 var results = [];
@@ -220,12 +247,16 @@ class SearchAPI:
                     var dataId = dlElement.getAttribute("data-id");
                     var href = dlElement.querySelector("dt a").getAttribute("href");
                     var alt = dlElement.querySelector("dt a img").getAttribute("alt");
-                    var src = dlElement.querySelector("dt a img").getAttribute("src");
+                    var imgElement = dlElement.querySelector("dt a img");
+                    var img_url = imgElement.getAttribute("data-ks-lazyload");
+                    if (!img_url) {
+                        img_url = imgElement.getAttribute("src");
+                    }
                     results.push({
                         num_iid: dataId,
                         item_href: href,
                         item_name: alt,
-                        img_url: src
+                        img_url: img_url
                     });
                 }
                 return results;
@@ -461,7 +492,7 @@ if __name__ == '__main__':
     # 创建webdriver
     search.setup_webdriver()
     # # 登录
-    # search.login()
+    search.login()
     # # 店铺信息
     # print(search.shop_info(57299736))
     # 店铺商品
@@ -478,7 +509,7 @@ if __name__ == '__main__':
     sheet_name = '品牌官网'
     exc = read_file(read_file_path, sheet_name)
 
-    for i in range(7, 242):
+    for i in range(13, 242):
         cell_id = exc.at[i, '序号']
         cell_href = exc.at[i, '网址']
         write_file_path = r'C:\Users\zzlsix\Desktop\items' + '\\' + str(cell_id) + '.json'
