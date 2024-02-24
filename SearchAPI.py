@@ -20,7 +20,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from FileHandler import read_file, write_file
 
-
+# 命令行启动：
 # chrome.exe -remote-debugging-port=9222 -user-data-dir="C:\Users\zzlsix\Desktop\atmP"
 # chrome.exe --remote-debugging-port=9222 --user-data-dir="C:\Users\zzlsix\Desktop\atmP" --headless
 # taskkill /F /IM chrome.exe
@@ -38,20 +38,20 @@ class SearchAPI:
         # os.popen(work)
 
         # 无头模式
-        # command = [
-        #     "chrome",
-        #     "--headless",
-        #     "--remote-debugging-port=9222",
-        #     "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP",
-        #     "https://www.baidu.com"
-        # ]
-
-        # 有头模式
         command = [
             "chrome",
+            "--headless",
             "--remote-debugging-port=9222",
-            "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP"
+            "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP",
+            "https://www.baidu.com"
         ]
+
+        # 有头模式
+        # command = [
+        #     "chrome",
+        #     "--remote-debugging-port=9222",
+        #     "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP"
+        # ]
 
         subprocess.Popen(command)
         options = Options()
@@ -67,45 +67,49 @@ class SearchAPI:
         # os.popen(work)
         print("program over")
 
-    # 滑块处理--刷新页面时
-    def slider_handler(self):
+    # 滑块处理--爬取items时
+    def slider_handler_items(self):
         # 获取滑块
         frame_element = self.driver.find_element(By.XPATH, "//iframe[@id='baxia-dialog-content']")
         self.driver.switch_to.frame(frame_element)
+        self.drag_slider()
+        self.driver.switch_to.default_content()
+
+    # 拖动滑块动作
+    def drag_slider(self):
+        print("drag slider")
         slider = self.driver.find_element(By.XPATH, "//div[contains(@class,'nc')]/span")
-        # 拖动滑块
+        # 获取滑块
         actions = ActionChains(self.driver)
         actions.click_and_hold(slider).perform()
-        # 定义速度参数
-        pullback = random.randint(15, 25)  # 回拉距离
-        current_offset = 0  # 当前位移
 
-        while current_offset < 300:
-            # 计算当前速度
-            if current_offset < 240:
-                speed = random.randint(120, 140)
-            if current_offset >= 240:
-                speed = random.randint(25, 65)
-            # 移动滑块
-            current_offset += speed
-            actions.move_by_offset(speed, 0).perform()
-            time.sleep(0.1)  # 等待一小段时间
+        # 生成轨迹
+        track = []
+        distance = 300
+        a = 0
+        while distance > 0:
+            span = random.randint(15,20)
+            a += span
+            track.append(a)
+            distance -= span
+            if sum(track[:-1]) > 300:
+                break
 
-            # 到达目标位置时进行微小的回拉动作
-            if current_offset >= 300 - pullback:
-                actions.move_by_offset(-pullback, 0).perform()
-                time.sleep(0.1)
-                actions.move_by_offset(pullback, 0).perform()
+        # 拖动滑块
+        for i in track:
+            actions.move_by_offset(xoffset=i, yoffset=0).perform()
+        time.sleep(0.1)
 
         # 释放滑块
         actions.release().perform()
-        self.driver.switch_to.default_content()
 
     # 登录淘宝账号,
     # **前提** 账号密码已经在浏览器保存，否则修改
-    def login(self):
+    def login(self, username, password):
         print("log in")
         self.driver.get("https://login.taobao.com/member/login.jhtml")
+
+        # 切换登录样式
         try:
             WebDriverWait(self.driver, 5).until(
                 expected_conditions.visibility_of_element_located(
@@ -117,10 +121,38 @@ class SearchAPI:
             print("no qrcode")
 
         # username and password
+        username = username
+        password = password
+        username_input = self.driver.find_element(By.XPATH, "//input[@id='fm-login-id']")
+        password_input = self.driver.find_element(By.XPATH, "//input[@id='fm-login-password']")
+        username_input.send_keys(username)
+        password_input.send_keys(password)
+
+        # TODO 登录时滑块
+        try:
+            WebDriverWait(self.driver, 5).until(
+                expected_conditions.visibility_of_element_located(
+                    (By.XPATH, "//iframe[@id='baxia-dialog-content']"))
+            )
+            print("***slider appears : before log in ***")
+            time.sleep(5)
+            self.slider_handler_items()
+        except TimeoutException:
+            print("before log in : no slider")
 
         time.sleep(random.randint(2, 3))
         self.driver.find_element(By.XPATH, "//div[@class='fm-btn']/button").click()
-        time.sleep(random.randint(1, 3))
+
+        # 登录后滑块
+        try:
+            WebDriverWait(self.driver, 5).until(
+                expected_conditions.visibility_of_element_located(
+                    (By.XPATH, "//div[contains(@class,'nc')]/span"))
+            )
+            print("***slider appears : after log in ***")
+            self.drag_slider()
+        except TimeoutException:
+            print("after log in : no slider")
 
     # 输入：店铺id
     # 输出：店铺基本信息（店铺名称、开店时长、所在地、动态评分等）
@@ -206,10 +238,13 @@ class SearchAPI:
             WebDriverWait(self.driver, 15).until(expected_conditions.visibility_of_element_located(
                 (By.XPATH, "//p[contains(@class,'ui-page')]/b[contains(@class,'len')]")))
         except TimeoutException:
-            print("***slider appears : access shop link ***")
-            WebDriverWait(self.driver, 5).until(expected_conditions.presence_of_element_located(
-                (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
-            self.slider_handler()
+            try:
+                WebDriverWait(self.driver, 10).until(expected_conditions.presence_of_element_located(
+                    (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
+                print("***slider appears : access shop link ***")
+                self.slider_handler_items()
+            except TimeoutException:
+                print("!!! unknown error : access shop link !!!")
 
         self.vars["totalPageString"] = self.driver.find_element(By.XPATH,
                                                                 "//p[contains(@class,'ui-page')]/b[contains(@class,'len')]").text
@@ -231,11 +266,14 @@ class SearchAPI:
                                                                                                         "//div[@class='J_TItems']/div[contains(@class,'pagination')]/preceding-sibling::div/dl"))
                                                      )
             except TimeoutException:
-                print("***slider appears : access shop page link ***")
-                WebDriverWait(self.driver, 5).until(expected_conditions.visibility_of_element_located(
-                    (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
-                self.slider_handler()
-                self.driver.get(shop_url + "/search.htm?orderType=newOn_desc&pageNo=" + str(i))
+                try:
+                    WebDriverWait(self.driver, 5).until(expected_conditions.visibility_of_element_located(
+                        (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
+                    print("***slider appears : access shop page link ***")
+                    self.slider_handler_items()
+                    self.driver.get(shop_url + "/search.htm?orderType=newOn_desc&pageNo=" + str(i))
+                except TimeoutException:
+                    print("!!! unknown error : access shop page link !!!")
 
             time.sleep(random.randint(5, 7))
 
@@ -492,7 +530,7 @@ if __name__ == '__main__':
     # 创建webdriver
     search.setup_webdriver()
     # # 登录
-    search.login()
+    search.login("18772332256","zzl112203")
     # # 店铺信息
     # print(search.shop_info(57299736))
     # 店铺商品
@@ -509,7 +547,7 @@ if __name__ == '__main__':
     sheet_name = '品牌官网'
     exc = read_file(read_file_path, sheet_name)
 
-    for i in range(13, 242):
+    for i in range(44, 242):
         cell_id = exc.at[i, '序号']
         cell_href = exc.at[i, '网址']
         write_file_path = r'C:\Users\zzlsix\Desktop\items' + '\\' + str(cell_id) + '.json'
