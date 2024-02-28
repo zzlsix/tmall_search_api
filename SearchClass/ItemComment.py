@@ -44,9 +44,16 @@ class ItemComment:
         comments = []
 
         while is_next_page:
-            WebDriverWait(self.driver, 30).until(expected_conditions.presence_of_element_located(
-                (By.XPATH,
-                 "//div[contains(@class,'Comment--root')]/div[contains(@class,'Comment--header')]//div[contains(@class,'Comment--userName')]")))
+            try:
+                WebDriverWait(self.driver, 15).until(expected_conditions.presence_of_element_located(
+                    (By.XPATH,
+                     "//div[contains(@class,'Comment--root')]/div[contains(@class,'Comment--header')]//div[contains(@class,'Comment--userName')]")))
+            except TimeoutException:
+                WebDriverWait(self.driver, 10).until(expected_conditions.presence_of_element_located(
+                    (By.XPATH,
+                     "//div[contains(@class,'Comments--root')]//div[contains(@class,'Comments--empty')]")))
+                return json.dumps(ItemCommentVO(comments).comments, ensure_ascii=False, indent=2)
+
             self.vars["comment"] = self.driver.execute_script('''
                 var result=[];
                 var xpathExpression="//div[contains(@class,'Comments--comments')]/div"

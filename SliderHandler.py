@@ -23,40 +23,51 @@ class SliderHandler:
         slider_disappear = False
         while not slider_disappear:
 
-            # 失败重试
-            slider = driver.find_element(By.XPATH, "//div[contains(@class,'nc')]/span")
-            slider.click()
-
             # 获取滑块
+            slider = driver.find_element(By.XPATH, "//div[contains(@class,'nc')]/span")
             actions = ActionChains(driver)
-            actions.click_and_hold(slider).perform()
+            actions.move_to_element_with_offset(slider, -1, 0).click_and_hold().perform()
 
-            # 生成轨迹
-            track = []
-            div_width = driver.find_element(By.XPATH, "//div[@class='nc_scale']//span[@data-nc-lang='SLIDE']").size['width']
-            distance = div_width+slider.size["width"]
-            while distance > 0:
-                span = random.randint(30, 50)
-                if span > distance:
-                    span = distance
-                track.append(span)
-                distance -= span
+            distance = driver.find_element(By.XPATH, "//div[@class='nc_scale']//span[@data-nc-lang='SLIDE']").size[
+                'width']
 
-            total_track = sum(track)
-
-            # 拖动滑块
-            for i in track:
-                actions.move_by_offset(xoffset=i, yoffset=0).perform()
-            time.sleep(0.1)
+            # 执行移动滑块
+            SliderHandler.finish_drag_slider(actions, distance)
 
             # 释放滑块
             actions.release().perform()
 
             try:
+                # 遇到失败重试
                 WebDriverWait(driver, 5).until(
-                    expected_conditions.visibility_of_element_located(
-                        (By.XPATH, "//iframe[@id='baxia-dialog-content']"))
+                    expected_conditions.presence_of_element_located(
+                        (By.XPATH, "//div[@class='errloading']"))
                 )
-                SliderHandler.slider_handler_items(driver)
+                div_body = driver.find_element(By.XPATH, "//div[@class='errloading']")
+                div_body.click()
+                SliderHandler.drag_slider(driver)
             except TimeoutException:
                 slider_disappear = True
+
+    @staticmethod
+    def finish_drag_slider(actions, distance):
+        # 定义速度参数
+        pullback = random.randint(15, 25)  # 回拉距离
+        current_offset = 0  # 当前位移
+
+        while current_offset < distance:
+            # 计算当前速度
+            if current_offset < distance-60:
+                speed = random.randint(120, 140)
+            if current_offset >= distance-60:
+                speed = random.randint(25, 65)
+            # 移动滑块
+            current_offset += speed
+            actions.move_by_offset(speed, 0).perform()
+            time.sleep(0.1)  # 等待一小段时间
+
+            # 到达目标位置时进行微小的回拉动作
+            if current_offset >= 300 - pullback:
+                actions.move_by_offset(-pullback, 0).perform()
+                time.sleep(0.1)
+                actions.move_by_offset(pullback, 0).perform()
