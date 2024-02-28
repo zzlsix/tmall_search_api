@@ -1,6 +1,7 @@
 import random
 import time
 
+from Message import Message
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions
@@ -10,7 +11,7 @@ from selenium.common.exceptions import TimeoutException
 
 class SliderHandler:
     @staticmethod
-    def slider_handler_items(driver):
+    def slider_handler_iframe(driver):
         # 获取滑块
         frame_element = driver.find_element(By.XPATH, "//iframe[@id='baxia-dialog-content']")
         driver.switch_to.frame(frame_element)
@@ -54,13 +55,13 @@ class SliderHandler:
         # 定义速度参数
         pullback = random.randint(15, 25)  # 回拉距离
         current_offset = 0  # 当前位移
-
+        speed = 0
         while current_offset < distance:
             # 计算当前速度
             if current_offset < distance-60:
                 speed = random.randint(120, 140)
             if current_offset >= distance-60:
-                speed = random.randint(25, 65)
+                speed = random.randint(20, 60)
             # 移动滑块
             current_offset += speed
             actions.move_by_offset(speed, 0).perform()
@@ -71,3 +72,27 @@ class SliderHandler:
                 actions.move_by_offset(-pullback, 0).perform()
                 time.sleep(0.1)
                 actions.move_by_offset(pullback, 0).perform()
+
+    @staticmethod
+    def check_slider(driver, log):
+        try:
+            # 检查是否为 iframe类型滑块
+            WebDriverWait(driver, 5).until(expected_conditions.visibility_of_element_located(
+                (By.XPATH, "//iframe[@id='baxia-dialog-content']")))
+            print(log)
+            SliderHandler.slider_handler_iframe(driver)
+
+        except TimeoutException:
+
+            try:
+                WebDriverWait(driver, 5).until(
+                    expected_conditions.visibility_of_element_located(
+                        (By.XPATH, "//div[contains(@class,'nc')]/span"))
+                )
+                print(log)
+                SliderHandler.drag_slider(driver)
+
+            except TimeoutException:
+
+                print(Message.UNKNOWN_ERROR)
+

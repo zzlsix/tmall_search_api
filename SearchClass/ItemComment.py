@@ -2,6 +2,7 @@ import json
 import random
 import time
 
+from Message import Message
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions
@@ -45,10 +46,13 @@ class ItemComment:
 
         while is_next_page:
             try:
+                # 有评论
                 WebDriverWait(self.driver, 15).until(expected_conditions.presence_of_element_located(
                     (By.XPATH,
                      "//div[contains(@class,'Comment--root')]/div[contains(@class,'Comment--header')]//div[contains(@class,'Comment--userName')]")))
             except TimeoutException:
+
+                # 没有评论 直接返回
                 WebDriverWait(self.driver, 10).until(expected_conditions.presence_of_element_located(
                     (By.XPATH,
                      "//div[contains(@class,'Comments--root')]//div[contains(@class,'Comments--empty')]")))
@@ -106,16 +110,15 @@ class ItemComment:
             time.sleep(random.randint(1, 5))
 
             try:
-
                 # 点击下一页按钮
                 WebDriverWait(self.driver, 5).until(expected_conditions.visibility_of_element_located(
                     (By.XPATH,
                      "//button[contains(@class,'Comments--nextBtn')]")))
                 self.driver.find_element(By.XPATH, "//button[contains(@class,'Comments--nextBtn')]").click()
             except TimeoutException:
-                try:
 
-                    # 如果出现 在手机上查看 二维码则视为停止
+                try:
+                    # 如果出现 在手机上查看二维码 则视为停止
                     WebDriverWait(self.driver, 5).until(expected_conditions.visibility_of_element_located(
                         (By.XPATH,
                          "//div[contains(@class,'Comments--guideToPhone')]")))
@@ -123,6 +126,7 @@ class ItemComment:
                     is_next_page = False
 
                 except TimeoutException:
-                    print("error")
+
+                    print(Message.UNKNOWN_ERROR)
 
         return json.dumps(ItemCommentVO(self.vars["comments"]).comments, ensure_ascii=False, indent=2)

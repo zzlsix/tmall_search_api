@@ -12,7 +12,6 @@ class WebDriver:
     def setup_webdriver(self):
         print("webdriver : set up and start")
         options = Options()
-        # options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
         options.add_argument("--autoplay-policy=no-user-gesture-required")
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("useAutomationExtension", False)

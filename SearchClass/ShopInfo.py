@@ -24,18 +24,18 @@ class ShopInfo:
         time.sleep(random.randint(3, 5))
 
         # 店铺名称
-        WebDriverWait(self.driver, 30).until(
+        WebDriverWait(self.driver, 10).until(
             expected_conditions.presence_of_element_located((By.XPATH, "//div[@class='slogo']/a/strong"))
         )
         self.vars["shop_name"] = self.driver.find_element(By.XPATH,
                                                           "//div[@class='slogo']/a/strong").text
-        WebDriverWait(self.driver, 30).until(
+        WebDriverWait(self.driver, 10).until(
             expected_conditions.visibility_of_element_located((By.XPATH, "//a[@class='slogo-triangle']/i"))
         )
         self.driver.find_element(By.XPATH, "//a[@class='slogo-triangle']/i").click()
 
         # 店铺评分
-        WebDriverWait(self.driver, 30).until(
+        WebDriverWait(self.driver, 10).until(
             expected_conditions.visibility_of_element_located((By.XPATH, "//div[@class='shop-rate']/ul/li[1]//em"))
         )
         self.vars["description_match"] = self.driver.find_element(By.XPATH,
@@ -46,14 +46,14 @@ class ShopInfo:
                                                                   "//div[@class='shop-rate']/ul/li[3]//em[@class='count']").text
 
         # 掌柜
-        WebDriverWait(self.driver, 30).until(
+        WebDriverWait(self.driver, 10).until(
             expected_conditions.visibility_of_element_located((By.XPATH, "//div[@class='right']/a"))
         )
         self.vars["shop_owner"] = self.driver.find_element(By.XPATH,
                                                            "//div[@class='right']/a").text
 
         # 开店时长
-        WebDriverWait(self.driver, 30).until(
+        WebDriverWait(self.driver, 10).until(
             expected_conditions.presence_of_element_located(
                 (By.XPATH, "//div[@class='right tm-shop-age']/span[@class='tm-shop-age-content']"))
         )
@@ -61,7 +61,7 @@ class ShopInfo:
                                                                        "//div[@class='right tm-shop-age']/span[@class='tm-shop-age-content']").text
 
         # 所在地
-        WebDriverWait(self.driver, 30).until(
+        WebDriverWait(self.driver, 10).until(
             expected_conditions.presence_of_element_located((By.XPATH, "//li[@class='locus']/div[@class='right']"))
         )
         self.vars["location"] = self.driver.find_element(By.XPATH, "//li[@class='locus']/div[@class='right']").text

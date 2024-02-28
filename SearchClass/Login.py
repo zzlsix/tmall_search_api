@@ -1,6 +1,7 @@
 import random
 import time
 
+from Message import Message
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions
@@ -42,28 +43,18 @@ class Login:
         self.driver.find_element(By.XPATH, "//div[@class='fm-btn']/button").click()
 
         # 登录时滑块检测
+        SliderHandler.check_slider(self.driver, Message.SLIDER_HAPPEN_BEFORE_LOG_IN)
+        time.sleep(random.randint(2, 3))
+
         try:
             WebDriverWait(self.driver, 5).until(
                 expected_conditions.visibility_of_element_located(
-                    (By.XPATH, "//iframe[@id='baxia-dialog-content']"))
+                    (By.XPATH, "//div[@class='fm-btn']/button"))
             )
-            print("***slider appears : before log in ***")
-            time.sleep(5)
-            SliderHandler.slider_handler_items(self.driver)
-            time.sleep(random.randint(2, 3))
-
             # 如果有滑块 再次点击登录按钮
             self.driver.find_element(By.XPATH, "//div[@class='fm-btn']/button").click()
         except TimeoutException:
-            print("before log in : no slider")
-
+            print("login success")
         # 登录后滑块检测
-        try:
-            WebDriverWait(self.driver, 5).until(
-                expected_conditions.visibility_of_element_located(
-                    (By.XPATH, "//div[contains(@class,'nc')]/span"))
-            )
-            print("***slider appears : after log in ***")
-            SliderHandler.drag_slider(self.driver)
-        except TimeoutException:
-            print("after log in : no slider")
+        SliderHandler.check_slider(self.driver, Message.SLIDER_HAPPEN_AFTER_LOG_IN)
+        print("login success")
