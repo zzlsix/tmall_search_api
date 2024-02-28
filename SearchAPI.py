@@ -20,6 +20,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from FileHandler import read_file, write_file
 
+
 # 命令行启动：
 # chrome.exe -remote-debugging-port=9222 -user-data-dir="C:\Users\zzlsix\Desktop\atmP"
 # chrome.exe --remote-debugging-port=9222 --user-data-dir="C:\Users\zzlsix\Desktop\atmP" --headless
@@ -38,20 +39,20 @@ class SearchAPI:
         # os.popen(work)
 
         # 无头模式
-        command = [
-            "chrome",
-            "--headless",
-            "--remote-debugging-port=9222",
-            "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP",
-            "https://www.baidu.com"
-        ]
-
-        # 有头模式
         # command = [
         #     "chrome",
+        #     "--headless",
         #     "--remote-debugging-port=9222",
-        #     "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP"
+        #     "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP",
+        #     "https://www.baidu.com"
         # ]
+
+        # 有头模式
+        command = [
+            "chrome",
+            "--remote-debugging-port=9222",
+            "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP"
+        ]
 
         subprocess.Popen(command)
         options = Options()
@@ -88,12 +89,15 @@ class SearchAPI:
         distance = 300
         a = 0
         while distance > 0:
-            span = random.randint(15,20)
+            span = random.randint(30, 40)
             a += span
             track.append(a)
             distance -= span
             if sum(track[:-1]) > 300:
                 break
+        total_track = sum(track[:-1])
+        if total_track > 300:
+            track[-1] -= total_track - 300
 
         # 拖动滑块
         for i in track:
@@ -126,8 +130,10 @@ class SearchAPI:
         username_input = self.driver.find_element(By.XPATH, "//input[@id='fm-login-id']")
         password_input = self.driver.find_element(By.XPATH, "//input[@id='fm-login-password']")
         username_input.send_keys(username)
+        time.sleep(1)
         password_input.send_keys(password)
-
+        time.sleep(1)
+        self.driver.find_element(By.XPATH, "//div[@class='fm-btn']/button").click()
         # TODO 登录时滑块
         try:
             WebDriverWait(self.driver, 5).until(
@@ -137,11 +143,10 @@ class SearchAPI:
             print("***slider appears : before log in ***")
             time.sleep(5)
             self.slider_handler_items()
+            time.sleep(random.randint(2, 3))
+            self.driver.find_element(By.XPATH, "//div[@class='fm-btn']/button").click()
         except TimeoutException:
             print("before log in : no slider")
-
-        time.sleep(random.randint(2, 3))
-        self.driver.find_element(By.XPATH, "//div[@class='fm-btn']/button").click()
 
         # 登录后滑块
         try:
@@ -246,15 +251,16 @@ class SearchAPI:
             except TimeoutException:
                 print("!!! unknown error : access shop link !!!")
 
+        shop_item_vo = []
+
+        WebDriverWait(self.driver, 15).until(expected_conditions.visibility_of_element_located(
+            (By.XPATH, "//p[contains(@class,'ui-page')]/b[contains(@class,'len')]")))
         self.vars["totalPageString"] = self.driver.find_element(By.XPATH,
                                                                 "//p[contains(@class,'ui-page')]/b[contains(@class,'len')]").text
         self.vars["totalPage"] = self.driver.execute_script("return arguments[0].split('/')[1].trim()",
                                                             self.vars["totalPageString"])
         print("number of all pages->{}".format(self.vars["totalPage"]))
         time.sleep(random.randint(2, 3))
-
-        shop_item_vo = []
-
         # 爬取商品
         for i in range(1, int(self.vars["totalPage"]) + 1):
 
@@ -300,6 +306,7 @@ class SearchAPI:
                 return results;
             ''')
             shop_item_vo.extend(self.vars["items"])
+
         # 存入json文件时返回值
         return ShopItemVO(shop_item_vo).items
         # 返回json格式时返回值
@@ -530,7 +537,7 @@ if __name__ == '__main__':
     # 创建webdriver
     search.setup_webdriver()
     # # 登录
-    search.login("18772332256","zzl112203")
+    search.login("18772332256", "zzl112203")
     # # 店铺信息
     # print(search.shop_info(57299736))
     # 店铺商品
@@ -547,7 +554,7 @@ if __name__ == '__main__':
     sheet_name = '品牌官网'
     exc = read_file(read_file_path, sheet_name)
 
-    for i in range(44, 242):
+    for i in range(83, 242):
         cell_id = exc.at[i, '序号']
         cell_href = exc.at[i, '网址']
         write_file_path = r'C:\Users\zzlsix\Desktop\items' + '\\' + str(cell_id) + '.json'
