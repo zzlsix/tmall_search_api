@@ -3,7 +3,11 @@ import random
 import json
 import os
 import subprocess
+import requests
+import urllib.parse
+import hashlib
 
+from VO.SkuInfoVO import SkuInfoVO
 from datetime import datetime
 from VO.ShopInfoVO import DynamicRatings
 from VO.ShopInfoVO import ShopInfoVO, serialize_shop_info
@@ -34,7 +38,7 @@ class SearchAPI:
 
     def setup_webdriver(self):
         print("webdriver : set up and start")
-        # # work = r'chrome.exe -remote-debugging-port=9222 -user-data-dir="C:\Users\zzlsix\Desktop\atmP"'
+        # work = r'chrome.exe -remote-debugging-port=9222 -user-data-dir="C:\Users\zzlsix\Desktop\atmP"'
         # work = r'chrome.exe  --headless --remote-debugging-port=9222 --user-data-dir="C:\Users\zzlsix\Desktop\atmP"'  # 无头配置
         # os.popen(work)
 
@@ -47,14 +51,14 @@ class SearchAPI:
         #     "https://www.baidu.com"
         # ]
 
-        # 有头模式
-        command = [
-            "chrome",
-            "--remote-debugging-port=9222",
-            "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP"
-        ]
-
-        subprocess.Popen(command)
+        # # 有头模式
+        # command = [
+        #     "chrome",
+        #     "--remote-debugging-port=9222",
+        #     "--user-data-dir=C:\\Users\\zzlsix\\Desktop\\atmP"
+        # ]
+        #
+        # subprocess.Popen(command)
         options = Options()
         options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
         self.driver = webdriver.Chrome(options=options)
@@ -531,13 +535,114 @@ class SearchAPI:
                     print("error")
         return json.dumps(ItemCommentVO(self.vars["comments"]).comments, ensure_ascii=False, indent=2)
 
+    def get_taobao_product_details(self, url):
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            # 替换为你的浏览器 User-Agent
+        }
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            return response
+        else:
+            print("Failed to retrieve data. Status code:", response.status_code)
+            return None
+
+    def get_source(self, id):
+        self.driver.get("https://detail.tmall.com/item.htm?id=770182924262")
+        cookies = self.driver.get_cookies()
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        cookies_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+        cookie_str = '; '.join([f"{cookie['name']}={cookie['value']}" for cookie in cookies])
+        _m_h5_tk = cookies_dict['_m_h5_tk']
+        _m_h5_tk_enc = cookies_dict['_m_h5_tk_enc']
+        ck_token = _m_h5_tk.split('_')[0]
+        t = str(int(time.time() * 1000))
+        app_key = str(12574478)
+        data = {"id": id, "detail_v": "3.3.2",
+                "exParams": "{\"abbucket\":\"4\",\"id\":\"" + id + "\",\"queryParams\":\"abbucket=4&id=" + id + "\",\"domain\":\"https://detail.tmall.com\",\"path_name\":\"/item.htm\"}"}
+        data_uri = urllib.parse.quote(json.dumps(data))
+        a = ck_token + "&" + t + "&" + app_key + "&" + json.dumps(data)
+        asign = hashlib.md5(a.encode('utf-8')).hexdigest()
+        api_url = ("https://h5api.m.tmall.com/h5/mtop.taobao.pcdetail.data.get/1.0/?jsv=2.6.1&appKey=12574478&t=" + t +
+                   "&sign=" + asign +
+                   "&api=mtop.taobao.pcdetail.data.get&v=1.0&isSec=0&ecode=0&timeout=10000&ttid=2022%40taobao_litepc_9.17.0&AntiFlood=true&AntiCreep=true&preventFallback=true&type=jsonp&dataType=jsonp&callback=mtopjsonp1" +
+                   "&data=" + data_uri)
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': '*/*',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Referer': 'https://detail.tmall.com/',
+            'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'script',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'same-site',
+            'User-Agent': user_agent,
+            'Cookie': cookie_str
+        }
+        response = requests.get(api_url, headers=headers)
+        mtop_jsonp = response.text.split('(', 1)[1].rstrip(')')
+        return json.loads(mtop_jsonp)
+
 
 if __name__ == '__main__':
     search = SearchAPI()
     # 创建webdriver
     search.setup_webdriver()
-    # # 登录
-    search.login("18772332256", "zzl112203")
+    response = search.get_source("744593438840")
+    data = response.get("data")
+    seller = data.get("seller")
+    shop_id = seller.get("shopId")
+    shop_name = seller.get("shopName")
+    unprocessed_item = data.get("item")
+    item = {
+        "item_id": unprocessed_item.get("itemId"),
+        "images": unprocessed_item.get("images"),
+        "title": unprocessed_item.get("title"),
+        "detail": data.get("componentsVO").get("extensionInfoVO").get("infos")
+    }
+    unprocessed_sku_base = data.get("skuBase")
+    sku_base = {
+        "props": unprocessed_sku_base.get("props")
+    }
+    sku_props_pid = {}
+    sku_props_vid = {}
+    for p in sku_base.get("props"):
+        sku_props_pid[p.get("pid")] = p.get("name")
+        for v in p.get("values"):
+            sku_props_vid[v.get("vid")] = v.get("name")
+
+    unprocessed_skus = unprocessed_sku_base.get("skus")
+    skus = []
+    sku2_info = data.get("skuCore").get("sku2info")
+    for sku_single in unprocessed_skus:
+        sku_id = sku_single.get("skuId")
+        get_sku_by_id = sku2_info.get(sku_id)
+        price = get_sku_by_id.get("price").get("priceText")
+        discount_price = get_sku_by_id.get("subPrice", "")
+        if discount_price:
+            discount_price = discount_price.get("priceText")
+        prop_path = sku_single.get("propPath")
+        description = ""
+        for path in prop_path.split(";"):
+            decompose_path = path.split(":")
+            pid = decompose_path[0]
+            vid = decompose_path[1]
+            description += sku_props_pid.get(pid) + ":" + sku_props_vid.get(vid) + ";"
+        skus.append({
+            "sku_id": sku_id,
+            "description": description,
+            "price": price,
+            "discount": discount_price,
+            "date": datetime.now().strftime("%Y-%m-%d"),
+        })
+    crawling_time = datetime.now().strftime("%Y-%m-%d")
+    sku_info_vo = SkuInfoVO(shop_id, shop_name, item, sku_base, skus, crawling_time)
+    print(json.dumps(sku_info_vo.to_dict(), ensure_ascii=False, indent=2))
+
+    print(1)
     # # 店铺信息
     # print(search.shop_info(57299736))
     # 店铺商品
@@ -549,14 +654,14 @@ if __name__ == '__main__':
     # # 商品评论
     # print(search.item_comment(678997602235))
 
-    # 商品存json文件代码
-    read_file_path = r'C:\Users\zzlsix\Desktop\items\项目品牌电商网址清单 -新增部分门店款数.xlsx'
-    sheet_name = '品牌官网'
-    exc = read_file(read_file_path, sheet_name)
-
-    for i in range(83, 242):
-        cell_id = exc.at[i, '序号']
-        cell_href = exc.at[i, '网址']
-        write_file_path = r'C:\Users\zzlsix\Desktop\items' + '\\' + str(cell_id) + '.json'
-        data = search.shop_item(cell_href)
-        write_file(write_file_path, data)
+    # # 商品存json文件代码
+    # read_file_path = r'C:\Users\zzlsix\Desktop\items\项目品牌电商网址清单 -新增部分门店款数.xlsx'
+    # sheet_name = '品牌官网'
+    # exc = read_file(read_file_path, sheet_name)
+    #
+    # for i in range(83, 242):
+    #     cell_id = exc.at[i, '序号']
+    #     cell_href = exc.at[i, '网址']
+    #     write_file_path = r'C:\Users\zzlsix\Desktop\items' + '\\' + str(cell_id) + '.json'
+    #     data = search.shop_item(cell_href)
+    #     write_file(write_file_path, data)
